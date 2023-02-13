@@ -1,58 +1,13 @@
 extern crate dotenv;
 
 use dotenv::dotenv;
-use serde::{Deserialize, Serialize};
 use std::env;
 use url::Url;
 
-#[derive(Deserialize, Serialize, Debug)]
-struct RecentTracks {
-    recenttracks: RecentTracksData,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-struct RecentTracksData {
-    track: Vec<Track>,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-struct Track {
-    artist: Artist,
-    album: Album,
-    name: String,
-    date: LfmDate,
-    url: String,
-    mbid: String,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-struct Artist {
-    image: Vec<Image>,
-    name: String,
-    mbid: String,
-    url: String,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-struct Album {
-    #[serde(alias = "#text")]
-    text: String,
-    mbid: String,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-struct Image {
-    #[serde(alias = "#text")]
-    text: String,
-    size: String,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-struct LfmDate {
-    uts: String,
-    #[serde(alias = "#text")]
-    text: String,
-}
+mod imageset;
+mod track;
+mod types;
+use types::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
