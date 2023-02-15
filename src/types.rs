@@ -26,9 +26,4 @@ pub struct Album {
     pub mbid: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct LfmDate {
-    pub uts: String,
-    #[serde(alias = "#text")]
-    pub text: String,
-}
+

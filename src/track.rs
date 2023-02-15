@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::types::{Album, Artist, LfmDate};
+use crate::{
+    lfm_date::LfmDate,
+    types::{Album, Artist},
+};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Track {

@@ -5,6 +5,7 @@ use std::env;
 use url::Url;
 
 mod imageset;
+mod lfm_date;
 mod track;
 mod types;
 use types::*;
