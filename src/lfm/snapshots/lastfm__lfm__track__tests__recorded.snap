@@ -1,0 +1,44 @@
+---
+source: src/lfm/track.rs
+expression: track
+---
+Recorded(
+    RecordedTrack {
+        artist: Artist {
+            image: ImageSet {
+                small: Some(
+                    "https://lastfm.freetls.fastly.net/i/u/34s/2a96cbd8b46e442fc41c2b86b821562f.png",
+                ),
+                medium: Some(
+                    "https://lastfm.freetls.fastly.net/i/u/64s/2a96cbd8b46e442fc41c2b86b821562f.png",
+                ),
+                large: Some(
+                    "https://lastfm.freetls.fastly.net/i/u/174s/2a96cbd8b46e442fc41c2b86b821562f.png",
+                ),
+                extralarge: Some(
+                    "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png",
+                ),
+            },
+            name: "Augustana",
+            url: "https://www.last.fm/music/Augustana",
+        },
+        name: "Ash and Ember",
+        image: ImageSet {
+            small: Some(
+                "https://lastfm.freetls.fastly.net/i/u/34s/65e46f0cb1864dc0cdb0c00db7ec8295.jpg",
+            ),
+            medium: Some(
+                "https://lastfm.freetls.fastly.net/i/u/64s/65e46f0cb1864dc0cdb0c00db7ec8295.jpg",
+            ),
+            large: Some(
+                "https://lastfm.freetls.fastly.net/i/u/174s/65e46f0cb1864dc0cdb0c00db7ec8295.jpg",
+            ),
+            extralarge: Some(
+                "https://lastfm.freetls.fastly.net/i/u/300x300/65e46f0cb1864dc0cdb0c00db7ec8295.jpg",
+            ),
+        },
+        album: "Life Imitating Life",
+        url: "https://www.last.fm/music/Augustana/_/Ash+and+Ember",
+        date: 2023-02-13T10:28:12Z,
+    },
+)

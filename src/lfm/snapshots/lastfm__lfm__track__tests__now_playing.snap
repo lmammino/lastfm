@@ -1,0 +1,43 @@
+---
+source: src/lfm/track.rs
+expression: track
+---
+NowPlaying(
+    NowPlayingTrack {
+        artist: Artist {
+            image: ImageSet {
+                small: Some(
+                    "https://lastfm.freetls.fastly.net/i/u/34s/2a96cbd8b46e442fc41c2b86b821562f.png",
+                ),
+                medium: Some(
+                    "https://lastfm.freetls.fastly.net/i/u/64s/2a96cbd8b46e442fc41c2b86b821562f.png",
+                ),
+                large: Some(
+                    "https://lastfm.freetls.fastly.net/i/u/174s/2a96cbd8b46e442fc41c2b86b821562f.png",
+                ),
+                extralarge: Some(
+                    "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png",
+                ),
+            },
+            name: "Editors",
+            url: "https://www.last.fm/music/Editors",
+        },
+        name: "Nothingness",
+        image: ImageSet {
+            small: Some(
+                "https://lastfm.freetls.fastly.net/i/u/34s/83308bb48d6b37aa76023e2030840423.jpg",
+            ),
+            medium: Some(
+                "https://lastfm.freetls.fastly.net/i/u/64s/83308bb48d6b37aa76023e2030840423.jpg",
+            ),
+            large: Some(
+                "https://lastfm.freetls.fastly.net/i/u/174s/83308bb48d6b37aa76023e2030840423.jpg",
+            ),
+            extralarge: Some(
+                "https://lastfm.freetls.fastly.net/i/u/300x300/83308bb48d6b37aa76023e2030840423.jpg",
+            ),
+        },
+        album: "Violence",
+        url: "https://www.last.fm/music/Editors/_/Nothingness",
+    },
+)

@@ -3,7 +3,7 @@ use std::{collections::HashMap, ops::Deref};
 use chrono::{DateTime, LocalResult, TimeZone, Utc};
 use serde::{de::Error, Deserialize, Deserializer, Serialize};
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct LfmDate(DateTime<Utc>);
 
 impl<'de> Deserialize<'de> for LfmDate {

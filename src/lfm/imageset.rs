@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{de::Error, Deserialize, Deserializer, Serialize};
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ImageSet {
     pub small: Option<String>,
     pub medium: Option<String>,

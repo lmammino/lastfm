@@ -4,11 +4,8 @@ use dotenv::dotenv;
 use std::env;
 use url::Url;
 
-mod imageset;
-mod lfm_date;
-mod track;
-mod types;
-use types::*;
+mod lfm;
+use lfm::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
