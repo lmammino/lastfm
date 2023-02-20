@@ -1,33 +1,30 @@
 extern crate dotenv;
 
 use dotenv::dotenv;
-use std::env;
-use url::Url;
+use futures_util::pin_mut;
+use futures_util::stream::StreamExt;
 
 mod lfm;
 use lfm::*;
+
+use crate::lfm::client::Client;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
-    let lastfm_api_key = env::var("LASTFM_API_KEY").expect("LASTFM_API_KEY must be set");
+    let mut client = Client::from_env("loige");
+    let recent_tracks = client.recent_tracks();
 
-    let base_url = "https://ws.audioscrobbler.com/2.0/";
+    pin_mut!(recent_tracks); // needed for iteration
 
-    let url = Url::parse_with_params(
-        base_url,
-        &[
-            ("method", "user.getrecenttracks"),
-            ("user", "loige"),
-            ("format", "json"),
-            ("extended", "1"),
-            ("api_key", &lastfm_api_key),
-        ],
-    )?;
-
-    let resp: RecentTracks = reqwest::get(url.to_string()).await?.json().await?;
-    let last_song = resp.recenttracks.track.first().unwrap();
-    println!("{last_song:#?}");
+    while let Some(track) = recent_tracks.next().await {
+        println!(
+            "{}: {} - {}",
+            track.date.to_rfc2822(),
+            track.artist.name,
+            track.name
+        );
+    }
     Ok(())
 }
