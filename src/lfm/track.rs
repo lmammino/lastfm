@@ -150,124 +150,14 @@ mod tests {
 
     #[test]
     fn test_now_playing() {
-        let now_playing = r##"{
-            "artist": {
-              "url": "https:\/\/www.last.fm\/music\/Editors",
-              "name": "Editors",
-              "image": [
-                {
-                  "size": "small",
-                  "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/34s\/2a96cbd8b46e442fc41c2b86b821562f.png"
-                },
-                {
-                  "size": "medium",
-                  "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/64s\/2a96cbd8b46e442fc41c2b86b821562f.png"
-                },
-                {
-                  "size": "large",
-                  "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/174s\/2a96cbd8b46e442fc41c2b86b821562f.png"
-                },
-                {
-                  "size": "extralarge",
-                  "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/300x300\/2a96cbd8b46e442fc41c2b86b821562f.png"
-                }
-              ],
-              "mbid": ""
-            },
-            "mbid": "1d59f1a9-d90f-4ced-aa11-d7bc605cf379",
-            "name": "Nothingness",
-            "image": [
-              {
-                "size": "small",
-                "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/34s\/83308bb48d6b37aa76023e2030840423.jpg"
-              },
-              {
-                "size": "medium",
-                "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/64s\/83308bb48d6b37aa76023e2030840423.jpg"
-              },
-              {
-                "size": "large",
-                "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/174s\/83308bb48d6b37aa76023e2030840423.jpg"
-              },
-              {
-                "size": "extralarge",
-                "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/300x300\/83308bb48d6b37aa76023e2030840423.jpg"
-              }
-            ],
-            "streamable": "0",
-            "album": {
-              "mbid": "220487dc-cb81-440a-ba66-5ff50a740f62",
-              "#text": "Violence"
-            },
-            "url": "https:\/\/www.last.fm\/music\/Editors\/_\/Nothingness",
-            "@attr": {
-              "nowplaying": "true"
-            },
-            "loved": "0"
-          }"##;
-
+        let now_playing = include_str!("fixtures/now_playing_track.json");
         let track: Track = serde_json::from_str(now_playing).unwrap();
         insta::assert_debug_snapshot!(track);
     }
 
     #[test]
     fn test_recorded() {
-        let now_playing = r##"{
-            "artist": {
-              "url": "https:\/\/www.last.fm\/music\/Augustana",
-              "name": "Augustana",
-              "image": [
-                {
-                  "size": "small",
-                  "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/34s\/2a96cbd8b46e442fc41c2b86b821562f.png"
-                },
-                {
-                  "size": "medium",
-                  "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/64s\/2a96cbd8b46e442fc41c2b86b821562f.png"
-                },
-                {
-                  "size": "large",
-                  "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/174s\/2a96cbd8b46e442fc41c2b86b821562f.png"
-                },
-                {
-                  "size": "extralarge",
-                  "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/300x300\/2a96cbd8b46e442fc41c2b86b821562f.png"
-                }
-              ],
-              "mbid": ""
-            },
-            "date": {
-              "uts": "1676284092",
-              "#text": "13 Feb 2023, 10:28"
-            },
-            "mbid": "a5620402-3856-4ecc-96f2-d16e997e8215",
-            "name": "Ash and Ember",
-            "image": [
-              {
-                "size": "small",
-                "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/34s\/65e46f0cb1864dc0cdb0c00db7ec8295.jpg"
-              },
-              {
-                "size": "medium",
-                "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/64s\/65e46f0cb1864dc0cdb0c00db7ec8295.jpg"
-              },
-              {
-                "size": "large",
-                "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/174s\/65e46f0cb1864dc0cdb0c00db7ec8295.jpg"
-              },
-              {
-                "size": "extralarge",
-                "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/300x300\/65e46f0cb1864dc0cdb0c00db7ec8295.jpg"
-              }
-            ],
-            "url": "https:\/\/www.last.fm\/music\/Augustana\/_\/Ash+and+Ember",
-            "streamable": "0",
-            "album": {
-              "mbid": "2acda9e8-bc52-448d-b08d-fa0ac75556b0",
-              "#text": "Life Imitating Life"
-            },
-            "loved": "0"
-          }"##;
+        let now_playing = include_str!("fixtures/recorded_track.json");
 
         let track: Track = serde_json::from_str(now_playing).unwrap();
         insta::assert_debug_snapshot!(track);

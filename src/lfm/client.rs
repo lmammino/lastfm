@@ -4,8 +4,8 @@ use tokio_stream::Stream;
 use url::Url;
 
 use super::{
+    recent_tracks_page::RecentTracksPage,
     track::{NowPlayingTrack, RecordedTrack, Track},
-    RecentTracks,
 };
 
 const BASE_URL: &str = "https://ws.audioscrobbler.com/2.0/";
@@ -16,9 +16,13 @@ pub struct Client {
     now_playing: Option<NowPlayingTrack>,
     current_page: Vec<RecordedTrack>,
     next_timestamp: Option<i64>,
-    has_more_pages: bool, // TODO: do we need these?
+    has_loaded_first_page: bool,
     total_tracks: u64,
-    retrieved_tracks: u64,
+}
+
+pub struct ClientInfo<'a> {
+    pub total_tracks: &'a u64,
+    pub now_playing: &'a Option<NowPlayingTrack>,
 }
 
 impl Client {
@@ -27,11 +31,10 @@ impl Client {
             api_key: api_key.as_ref().to_string(),
             username: username.as_ref().to_string(),
             now_playing: None,
-            current_page: Vec::with_capacity(50),
+            current_page: Vec::with_capacity(200),
             next_timestamp: None,
-            has_more_pages: true,
+            has_loaded_first_page: false,
             total_tracks: 0,
-            retrieved_tracks: 0,
         }
     }
 
@@ -49,6 +52,7 @@ impl Client {
                 ("user", self.username.as_str()),
                 ("format", "json"),
                 ("extended", "1"),
+                ("limit", "200"),
                 ("api_key", self.api_key.as_str()),
             ],
         )?;
@@ -58,31 +62,45 @@ impl Client {
                 .append_pair("to", &timestamp.to_string());
         }
 
-        let resp: RecentTracks = reqwest::get(url.to_string()).await?.json().await?;
+        let page: RecentTracksPage = reqwest::get(url.to_string()).await?.json().await?;
+
+        if !self.has_loaded_first_page {
+            self.has_loaded_first_page = true;
+            self.total_tracks = page.total_tracks;
+        }
 
         self.current_page.clear();
-        resp.recenttracks.track.iter().for_each(|t| match t {
-            Track::Recorded(t) => {
-                // self.total_tracks = t.total;
-                self.current_page.push(t.clone());
-                self.next_timestamp = Some(t.date.timestamp());
+
+        for track in page.tracks {
+            match track {
+                Track::Recorded(t) => {
+                    self.next_timestamp = Some(t.date.timestamp());
+                    self.current_page.push(t);
+                }
+                Track::NowPlaying(t) => {
+                    self.now_playing = Some(t);
+                }
             }
-            Track::NowPlaying(t) => {
-                self.now_playing = Some(t.clone());
-            }
-        });
+        }
 
         Ok(self.current_page.is_empty())
     }
 
     // TODO: how to handle errors?!
-    pub async fn now_playing(&mut self) -> &Option<NowPlayingTrack> {
-        self.load_next_page().await.unwrap();
-        &self.now_playing
+    pub async fn get_info(&mut self) -> ClientInfo {
+        if !self.has_loaded_first_page {
+            self.load_next_page().await.unwrap();
+        }
+
+        ClientInfo {
+            total_tracks: &self.total_tracks,
+            now_playing: &self.now_playing,
+        }
     }
 
-    pub fn recent_tracks(&mut self) -> impl Stream<Item = RecordedTrack> + '_ {
-        let s = stream! {
+    // TODO: how to handle errors?!
+    pub fn recent_tracks(mut self) -> impl Stream<Item = RecordedTrack> {
+        let recent_tracks = stream! {
             loop {
                 match self.current_page.pop() {
                     Some(t) => {
@@ -98,6 +116,6 @@ impl Client {
             }
         };
 
-        s
+        recent_tracks
     }
 }

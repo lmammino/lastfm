@@ -1,0 +1,56 @@
+{
+  "artist": {
+    "url": "https:\/\/www.last.fm\/music\/Augustana",
+    "name": "Augustana",
+    "image": [
+      {
+        "size": "small",
+        "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/34s\/2a96cbd8b46e442fc41c2b86b821562f.png"
+      },
+      {
+        "size": "medium",
+        "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/64s\/2a96cbd8b46e442fc41c2b86b821562f.png"
+      },
+      {
+        "size": "large",
+        "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/174s\/2a96cbd8b46e442fc41c2b86b821562f.png"
+      },
+      {
+        "size": "extralarge",
+        "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/300x300\/2a96cbd8b46e442fc41c2b86b821562f.png"
+      }
+    ],
+    "mbid": ""
+  },
+  "date": {
+    "uts": "1676284092",
+    "#text": "13 Feb 2023, 10:28"
+  },
+  "mbid": "a5620402-3856-4ecc-96f2-d16e997e8215",
+  "name": "Ash and Ember",
+  "image": [
+    {
+      "size": "small",
+      "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/34s\/65e46f0cb1864dc0cdb0c00db7ec8295.jpg"
+    },
+    {
+      "size": "medium",
+      "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/64s\/65e46f0cb1864dc0cdb0c00db7ec8295.jpg"
+    },
+    {
+      "size": "large",
+      "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/174s\/65e46f0cb1864dc0cdb0c00db7ec8295.jpg"
+    },
+    {
+      "size": "extralarge",
+      "#text": "https:\/\/lastfm.freetls.fastly.net\/i\/u\/300x300\/65e46f0cb1864dc0cdb0c00db7ec8295.jpg"
+    }
+  ],
+  "url": "https:\/\/www.last.fm\/music\/Augustana\/_\/Ash+and+Ember",
+  "streamable": "0",
+  "album": {
+    "mbid": "2acda9e8-bc52-448d-b08d-fa0ac75556b0",
+    "#text": "Life Imitating Life"
+  },
+  "loved": "0"
+}
