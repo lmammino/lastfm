@@ -84,6 +84,9 @@ async fn get_page<A: AsRef<str>, U: AsRef<str>>(
     from: Option<i64>,
     to: Option<i64>,
 ) -> Result<RecentTracksPage, Box<dyn std::error::Error>> {
+    // TODO: find a better way to print errors (maybe debug crate!)
+    // TODO: consider accumulating all the errors and embedding them in the final too many retry error
+
     let mut url_query = vec![
         ("method", "user.getrecenttracks".to_string()),
         ("user", username.as_ref().to_string()),
