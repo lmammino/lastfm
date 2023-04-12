@@ -1,4 +1,4 @@
-use async_stream::stream;
+use async_stream::try_stream;
 use std::env;
 use tokio_stream::Stream;
 use url::Url;
@@ -13,16 +13,87 @@ const BASE_URL: &str = "https://ws.audioscrobbler.com/2.0/";
 pub struct Client {
     api_key: String,
     username: String,
-    now_playing: Option<NowPlayingTrack>,
-    current_page: Vec<RecordedTrack>,
-    next_timestamp: Option<i64>,
-    has_loaded_first_page: bool,
-    total_tracks: u64,
 }
 
-pub struct ClientInfo<'a> {
-    pub total_tracks: &'a u64,
-    pub now_playing: &'a Option<NowPlayingTrack>,
+pub struct RecentTracksFetcher {
+    api_key: String,
+    username: String,
+    current_page: Vec<RecordedTrack>,
+    from: Option<i64>,
+    to: Option<i64>,
+    pub total_tracks: u64,
+}
+
+impl RecentTracksFetcher {
+    fn update_current_page(&mut self, page: RecentTracksPage) {
+        let mut current_page: Vec<RecordedTrack> = Vec::with_capacity(200);
+        let mut to: Option<i64> = None;
+
+        for track in page.tracks {
+            if let Track::Recorded(t) = track {
+                to = Some(t.date.timestamp());
+                current_page.push(t);
+            }
+        }
+
+        self.current_page = current_page;
+        self.to = to;
+    }
+
+    pub fn into_stream(
+        mut self,
+    ) -> impl Stream<Item = Result<RecordedTrack, Box<dyn std::error::Error>>> {
+        let recent_tracks = try_stream! {
+            loop {
+                match self.current_page.pop() {
+                    Some(t) => {
+                        yield t;
+                    }
+                    None => {
+                        let next_page = get_page(&self.api_key, &self.username, 200, self.from, self.to).await?;
+                        if next_page.tracks.is_empty() {
+                            break;
+                        }
+                       self.update_current_page(next_page);
+                    },
+                }
+            }
+        };
+
+        recent_tracks
+    }
+}
+
+async fn get_page<A: AsRef<str>, U: AsRef<str>>(
+    api_key: A,
+    username: U,
+    limit: u32,
+    from: Option<i64>,
+    to: Option<i64>,
+) -> Result<RecentTracksPage, Box<dyn std::error::Error>> {
+    // TODO: add retry mechanism with exponential backoff for sporadic 500 errors
+    let mut url_query = vec![
+        ("method", "user.getrecenttracks".to_string()),
+        ("user", username.as_ref().to_string()),
+        ("format", "json".to_string()),
+        ("extended", "1".to_string()),
+        ("limit", limit.to_string()),
+        ("api_key", api_key.as_ref().to_string()),
+    ];
+
+    if let Some(from) = from {
+        url_query.push(("from", from.to_string()));
+    }
+
+    if let Some(to) = to {
+        url_query.push(("to", to.to_string()));
+    }
+
+    let url = Url::parse_with_params(BASE_URL, &url_query)?;
+
+    let page: RecentTracksPage = reqwest::get(url.to_string()).await?.json().await?;
+
+    Ok(page)
 }
 
 impl Client {
@@ -30,11 +101,6 @@ impl Client {
         Client {
             api_key: api_key.as_ref().to_string(),
             username: username.as_ref().to_string(),
-            now_playing: None,
-            current_page: Vec::with_capacity(200),
-            next_timestamp: None,
-            has_loaded_first_page: false,
-            total_tracks: 0,
         }
     }
 
@@ -43,79 +109,37 @@ impl Client {
         Client::new(api_key, username)
     }
 
-    // TODO: create proper error types for this client
-    async fn load_next_page(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
-        let mut url = Url::parse_with_params(
-            BASE_URL,
-            &[
-                ("method", "user.getrecenttracks"),
-                ("user", self.username.as_str()),
-                ("format", "json"),
-                ("extended", "1"),
-                ("limit", "200"),
-                ("api_key", self.api_key.as_str()),
-            ],
-        )?;
+    pub async fn now_playing(&self) -> Result<Option<NowPlayingTrack>, Box<dyn std::error::Error>> {
+        let page = get_page(&self.api_key, &self.username, 1, None, None).await?;
 
-        if let Some(timestamp) = self.next_timestamp {
-            url.query_pairs_mut()
-                .append_pair("to", &timestamp.to_string());
-        }
-
-        let page: RecentTracksPage = reqwest::get(url.to_string()).await?.json().await?;
-
-        if !self.has_loaded_first_page {
-            self.has_loaded_first_page = true;
-            self.total_tracks = page.total_tracks;
-        }
-
-        self.current_page.clear();
-
-        for track in page.tracks {
-            match track {
-                Track::Recorded(t) => {
-                    self.next_timestamp = Some(t.date.timestamp());
-                    self.current_page.push(t);
-                }
-                Track::NowPlaying(t) => {
-                    self.now_playing = Some(t);
-                }
-            }
-        }
-
-        Ok(self.current_page.is_empty())
-    }
-
-    // TODO: how to handle errors?!
-    pub async fn get_info(&mut self) -> ClientInfo {
-        if !self.has_loaded_first_page {
-            self.load_next_page().await.unwrap();
-        }
-
-        ClientInfo {
-            total_tracks: &self.total_tracks,
-            now_playing: &self.now_playing,
+        match page.tracks.first() {
+            Some(Track::NowPlaying(t)) => Ok(Some(t.clone())),
+            _ => Ok(None),
         }
     }
 
-    // TODO: how to handle errors?!
-    pub fn recent_tracks(mut self) -> impl Stream<Item = RecordedTrack> {
-        let recent_tracks = stream! {
-            loop {
-                match self.current_page.pop() {
-                    Some(t) => {
-                        yield t;
-                    }
-                    None => {
-                        let is_over = self.load_next_page().await.unwrap();
-                        if is_over {
-                            break;
-                        }
-                    },
-                }
-            }
+    pub async fn all_tracks(self) -> Result<RecentTracksFetcher, Box<dyn std::error::Error>> {
+        self.recent_tracks(None, None).await
+    }
+
+    pub async fn recent_tracks(
+        self,
+        from: Option<i64>,
+        to: Option<i64>,
+    ) -> Result<RecentTracksFetcher, Box<dyn std::error::Error>> {
+        let page = get_page(&self.api_key, &self.username, 200, from, to).await?;
+
+        let mut fetcher = RecentTracksFetcher {
+            api_key: self.api_key.clone(),
+            username: self.username.clone(),
+            current_page: vec![],
+            from,
+            to,
+            total_tracks: page.total_tracks,
         };
 
-        recent_tracks
+        fetcher.update_current_page(page);
+
+        Ok(fetcher)
     }
 }
