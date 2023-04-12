@@ -1,14 +1,27 @@
-use async_stream::try_stream;
-use std::env;
-use tokio_stream::Stream;
-use url::Url;
+use crate::lfm::{recent_tracks_page::RecentTracksResponse, retry_delay::RetryDelay};
 
 use super::{
     recent_tracks_page::RecentTracksPage,
     track::{NowPlayingTrack, RecordedTrack, Track},
 };
+use async_stream::try_stream;
+use std::{env, time::Duration};
+use tokio_stream::Stream;
+use url::Url;
 
 const BASE_URL: &str = "https://ws.audioscrobbler.com/2.0/";
+
+lazy_static! {
+    static ref CLIENT: reqwest::Client = reqwest::ClientBuilder::new()
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(10))
+        .user_agent(format!(
+            "github.com/lmammino/rust-lastfm {}",
+            env!("CARGO_PKG_VERSION")
+        ))
+        .build()
+        .expect("Cannot initialize HTTP client");
+}
 
 pub struct Client {
     api_key: String,
@@ -54,7 +67,7 @@ impl RecentTracksFetcher {
                         if next_page.tracks.is_empty() {
                             break;
                         }
-                       self.update_current_page(next_page);
+                        self.update_current_page(next_page);
                     },
                 }
             }
@@ -71,7 +84,6 @@ async fn get_page<A: AsRef<str>, U: AsRef<str>>(
     from: Option<i64>,
     to: Option<i64>,
 ) -> Result<RecentTracksPage, Box<dyn std::error::Error>> {
-    // TODO: add retry mechanism with exponential backoff for sporadic 500 errors
     let mut url_query = vec![
         ("method", "user.getrecenttracks".to_string()),
         ("user", username.as_ref().to_string()),
@@ -89,11 +101,32 @@ async fn get_page<A: AsRef<str>, U: AsRef<str>>(
         url_query.push(("to", to.to_string()));
     }
 
-    let url = Url::parse_with_params(BASE_URL, &url_query)?;
+    let url = Url::parse_with_params(BASE_URL, &url_query).unwrap();
 
-    let page: RecentTracksPage = reqwest::get(url.to_string()).await?.json().await?;
+    let retry = RetryDelay::new(5);
+    for sleep_time in retry {
+        let res = CLIENT.get(&(url).to_string()).send().await;
+        match res {
+            Ok(res) => {
+                let page: RecentTracksResponse = res.json().await?;
+                match page {
+                    RecentTracksResponse::RecentTracksPage(page) => {
+                        return Ok(page);
+                    }
+                    RecentTracksResponse::Error(e) => {
+                        println!("Error: {}", e.message);
+                        tokio::time::sleep(sleep_time).await;
+                    }
+                }
+            }
+            Err(e) => {
+                println!("Error: {}", e);
+                tokio::time::sleep(sleep_time).await;
+            }
+        }
+    }
 
-    Ok(page)
+    Err("Too many retry".into())
 }
 
 impl Client {

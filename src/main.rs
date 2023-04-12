@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate lazy_static;
+
 extern crate dotenv;
 
 use dotenv::dotenv;
@@ -25,13 +28,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let recent_tracks = tracks.into_stream();
     pin_mut!(recent_tracks); // needed for iteration
-    while let Some(Ok(track)) = recent_tracks.next().await {
-        println!(
-            "{}: {} - {}",
-            track.date.to_rfc2822(),
-            track.artist.name,
-            track.name
-        );
+    while let Some(track) = recent_tracks.next().await {
+        match track {
+            Ok(track) => {
+                println!(
+                    "{}: {} - {}",
+                    track.date.to_rfc2822(),
+                    track.artist.name,
+                    track.name
+                );
+            }
+            Err(e) => {
+                println!("Error fetching data: {:?}", e);
+            }
+        }
     }
     Ok(())
 }

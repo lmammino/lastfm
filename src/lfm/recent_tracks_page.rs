@@ -1,7 +1,14 @@
 use serde::{de::Error, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-use super::track::Track;
+use super::{error_response::ErrorResponse, track::Track};
+
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RecentTracksResponse {
+    Error(ErrorResponse),
+    RecentTracksPage(RecentTracksPage),
+}
 
 #[derive(Serialize, Debug, Clone)]
 pub struct RecentTracksPage {
