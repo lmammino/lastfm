@@ -1,9 +1,9 @@
-use crate::lfm::{recent_tracks_page::RecentTracksResponse, retry_delay::RetryDelay};
-
 use super::{
+    errors::Error,
     recent_tracks_page::RecentTracksPage,
     track::{NowPlayingTrack, RecordedTrack, Track},
 };
+use crate::lfm::{recent_tracks_page::RecentTracksResponse, retry_delay::RetryDelay};
 use async_stream::try_stream;
 use std::{env, time::Duration};
 use tokio_stream::Stream;
@@ -53,9 +53,7 @@ impl RecentTracksFetcher {
         self.to = to;
     }
 
-    pub fn into_stream(
-        mut self,
-    ) -> impl Stream<Item = Result<RecordedTrack, Box<dyn std::error::Error>>> {
+    pub fn into_stream(mut self) -> impl Stream<Item = Result<RecordedTrack, Error>> {
         let recent_tracks = try_stream! {
             loop {
                 match self.current_page.pop() {
@@ -83,10 +81,7 @@ async fn get_page<A: AsRef<str>, U: AsRef<str>>(
     limit: u32,
     from: Option<i64>,
     to: Option<i64>,
-) -> Result<RecentTracksPage, Box<dyn std::error::Error>> {
-    // TODO: find a better way to print errors (maybe debug crate!)
-    // TODO: consider accumulating all the errors and embedding them in the final too many retry error
-
+) -> Result<RecentTracksPage, Error> {
     let mut url_query = vec![
         ("method", "user.getrecenttracks".to_string()),
         ("user", username.as_ref().to_string()),
@@ -107,6 +102,7 @@ async fn get_page<A: AsRef<str>, U: AsRef<str>>(
     let url = Url::parse_with_params(BASE_URL, &url_query).unwrap();
 
     let retry = RetryDelay::new(5);
+    let mut errors: Vec<Error> = Vec::new();
     for sleep_time in retry {
         let res = CLIENT.get(&(url).to_string()).send().await;
         match res {
@@ -117,19 +113,20 @@ async fn get_page<A: AsRef<str>, U: AsRef<str>>(
                         return Ok(page);
                     }
                     RecentTracksResponse::Error(e) => {
-                        println!("Error: {}", e.message);
+                        tracing::error!("Error: {}", e.message);
                         tokio::time::sleep(sleep_time).await;
                     }
                 }
             }
             Err(e) => {
-                println!("Error: {}", e);
+                tracing::error!("Error: {}", e);
+                errors.push(e.into());
                 tokio::time::sleep(sleep_time).await;
             }
         }
     }
 
-    Err("Too many retry".into())
+    Err(Error::TooManyRetry(errors))
 }
 
 impl Client {
@@ -145,7 +142,7 @@ impl Client {
         Client::new(api_key, username)
     }
 
-    pub async fn now_playing(&self) -> Result<Option<NowPlayingTrack>, Box<dyn std::error::Error>> {
+    pub async fn now_playing(&self) -> Result<Option<NowPlayingTrack>, Error> {
         let page = get_page(&self.api_key, &self.username, 1, None, None).await?;
 
         match page.tracks.first() {
@@ -154,7 +151,7 @@ impl Client {
         }
     }
 
-    pub async fn all_tracks(self) -> Result<RecentTracksFetcher, Box<dyn std::error::Error>> {
+    pub async fn all_tracks(self) -> Result<RecentTracksFetcher, Error> {
         self.recent_tracks(None, None).await
     }
 
@@ -162,7 +159,7 @@ impl Client {
         self,
         from: Option<i64>,
         to: Option<i64>,
-    ) -> Result<RecentTracksFetcher, Box<dyn std::error::Error>> {
+    ) -> Result<RecentTracksFetcher, Error> {
         let page = get_page(&self.api_key, &self.username, 200, from, to).await?;
 
         let mut fetcher = RecentTracksFetcher {
