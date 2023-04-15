@@ -1,7 +1,6 @@
+use super::{error_response::ErrorResponse, track::Track};
 use serde::{de::Error, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
-
-use super::{error_response::ErrorResponse, track::Track};
 
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]

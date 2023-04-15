@@ -113,7 +113,10 @@ async fn get_page<A: AsRef<str>, U: AsRef<str>>(
                         return Ok(page);
                     }
                     RecentTracksResponse::Error(e) => {
-                        tracing::error!("Error: {}", e.message);
+                        tracing::error!("LastFm Error: {}", e.message);
+                        if !e.is_retriable() {
+                            return Err(e.into());
+                        }
                         tokio::time::sleep(sleep_time).await;
                     }
                 }
