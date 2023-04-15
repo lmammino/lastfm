@@ -3,7 +3,7 @@ use super::{
     recent_tracks_page::RecentTracksPage,
     track::{NowPlayingTrack, RecordedTrack, Track},
 };
-use crate::lfm::{recent_tracks_page::RecentTracksResponse, retry_delay::RetryDelay};
+use crate::{recent_tracks_page::RecentTracksResponse, retry_delay::RetryDelay};
 use async_stream::try_stream;
 use std::{env, time::Duration};
 use tokio_stream::Stream;

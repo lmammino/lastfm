@@ -2,6 +2,14 @@
 name = "lastfm"
 version = "0.1.0"
 edition = "2021"
+authors = ["Luciano Mammino"]
+description = "A client to fetch your Last.fm listening history or your currently playing track"
+documentation = "https://docs.rs/lastfm"
+repository = "https://github.com/lmammino/lastfm"
+keywords = ["lastfm", "web", "api"]
+categories = ["api-bindings"]
+license = "MIT"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

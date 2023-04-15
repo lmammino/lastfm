@@ -1,16 +1,8 @@
-#[macro_use]
-extern crate lazy_static;
-
 extern crate dotenv;
-
 use dotenv::dotenv;
 use futures_util::pin_mut;
 use futures_util::stream::StreamExt;
-
-mod lfm;
-use lfm::*;
-
-use crate::lfm::client::Client;
+use lastfm::Client;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

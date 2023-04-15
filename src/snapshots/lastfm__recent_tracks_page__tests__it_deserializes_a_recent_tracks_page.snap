@@ -1,5 +1,5 @@
 ---
-source: src/lfm/recent_tracks_page.rs
+source: src/recent_tracks_page.rs
 expression: recent_tracks_page
 ---
 RecentTracksPage {

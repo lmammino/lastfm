@@ -1,5 +1,5 @@
 ---
-source: src/lfm/track.rs
+source: src/track.rs
 expression: track
 ---
 NowPlaying(
