@@ -8,7 +8,7 @@ pub enum Error {
     #[error("JSON deserialization error: {0}")]
     Deserialization(#[from] serde_json::Error),
     #[error("Unretryable error from LastFM: {0}")]
-    UnretryableLastFm(#[from] ErrorResponse),
+    UnretriableLastFm(#[from] ErrorResponse),
     #[error("Too many retries")]
     TooManyRetry(Vec<Error>),
 }
