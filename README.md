@@ -5,6 +5,7 @@
 [![docs.rs](https://docs.rs/lastfm/badge.svg)](https://docs.rs/lastfm)
 
 
+
 <!-- cargo-sync-readme start -->
 
 `lastfm` is an async Rust client to fetch your <Last.fm> listening history or the track you are currently playing
