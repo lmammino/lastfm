@@ -47,7 +47,7 @@ Note: this method will panic if `LASTFM_API_KEY` is not set.
 
 ### Fetch the track you are currently playing
 
-```rust,no_run
+```rust
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let client = Client::new("YOUR_API_KEY", "YOUR_USERNAME");
@@ -65,7 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 **Note**: You will need the `futures-util` crate to use the `Stream` returned by `all_tracks`.
 
 
-```rust,no_run
+```rust
 use futures_util::pin_mut;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

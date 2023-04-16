@@ -31,7 +31,7 @@
 //!
 //! If you have your API key exposed through the `LASTFM_API_KEY` environment variable, you can use the `from_env` method:
 //!
-//! ```rust
+//! ```rust,no_run
 //! # use lastfm::Client;
 //! #
 //! let client = Client::from_env("YOUR_USERNAME");
@@ -63,6 +63,7 @@
 //!
 //! ```rust,no_run
 //! use futures_util::pin_mut;
+//! use futures_util::stream::StreamExt;
 //! # use lastfm::Client;
 //! #
 //! #[tokio::main]
