@@ -1,4 +1,4 @@
-//! `lastfm` is an async Rust client to fetch your <Last.fm> listening history or the track you are currently playing
+//! `lastfm` is an async Rust client to fetch your [Last.fm](https://last.fm) listening history or the track you are currently playing
 //!
 //! ## Installation
 //!
@@ -23,12 +23,6 @@
 //!
 //! ### Create a new client
 //!
-//! ```rust
-//! # use lastfm::Client;
-//! #
-//! let client = Client::new("YOUR_API_KEY", "YOUR_USERNAME");
-//! ```
-//!
 //! If you have your API key exposed through the `LASTFM_API_KEY` environment variable, you can use the `from_env` method:
 //!
 //! ```rust,no_run
@@ -39,14 +33,38 @@
 //!
 //! Note: this method will panic if `LASTFM_API_KEY` is not set.
 //!
-//! ### Fetch the track you are currently playing
+//! Alternatively, you can use `try_from_env` which will return a `Result`.
 //!
 //! ```rust,no_run
 //! # use lastfm::Client;
 //! #
+//! let maybe_client = Client::try_from_env("YOUR_USERNAME");
+//! match maybe_client {
+//!   Ok(client) => {
+//!     // do something with the client
+//!   }
+//!   Err(e) => {
+//!     // handle error
+//!   }
+//! }
+//! ```
+//!
+//! Finally, for more advanced configurations you can use a `ClientBuilder`:
+//!
+//! ```rust
+//! # use lastfm::ClientBuilder;
+//! #
+//! let client = ClientBuilder::new("YOUR_API_KEY", "YOUR_USERNAME").build();
+//! ```
+//!
+//! ### Fetch the track you are currently playing
+//!
+//! ```rust,no_run
+//! # use lastfm::ClientBuilder;
+//! #
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!   let client = Client::new("YOUR_API_KEY", "YOUR_USERNAME");
+//!   let client = ClientBuilder::new("YOUR_API_KEY", "YOUR_USERNAME").build();
 //!   let now_playing = client.now_playing().await?;
 //!   if let Some(track) = now_playing {
 //!     println!("Now playing: {} - {}", track.artist.name, track.name);
@@ -64,11 +82,11 @@
 //! ```rust,no_run
 //! use futures_util::pin_mut;
 //! use futures_util::stream::StreamExt;
-//! # use lastfm::Client;
+//! # use lastfm::ClientBuilder;
 //! #
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!   let client = Client::new("YOUR_API_KEY", "YOUR_USERNAME");
+//!   let client = ClientBuilder::new("YOUR_API_KEY", "YOUR_USERNAME").build();
 //!   let tracks = client.all_tracks().await?;
 //!   println!("Total tracks: {}", tracks.total_tracks);
 //!
@@ -105,5 +123,4 @@ pub mod lfm_date;
 pub mod recent_tracks_page;
 pub mod retry_delay;
 pub mod track;
-
-pub use client::Client;
+pub use client::{Client, ClientBuilder};

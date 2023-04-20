@@ -5,22 +5,43 @@ use super::{
 };
 use crate::{recent_tracks_page::RecentTracksResponse, retry_delay::RetryDelay};
 use async_stream::try_stream;
-use std::{env, time::Duration};
+use std::{
+    env::{self, VarError},
+    time::Duration,
+};
 use tokio_stream::Stream;
 use url::Url;
 
 const BASE_URL: &str = "https://ws.audioscrobbler.com/2.0/";
 
 lazy_static! {
-    static ref CLIENT: reqwest::Client = reqwest::ClientBuilder::new()
+    static ref DEFAULT_CLIENT: reqwest::Client = reqwest::ClientBuilder::new()
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(10))
         .user_agent(format!(
-            "github.com/lmammino/rust-lastfm {}",
+            "github.com/lmammino/lastfm {}",
             env!("CARGO_PKG_VERSION")
         ))
         .build()
         .expect("Cannot initialize HTTP client");
+}
+
+pub struct ClientBuilder<A: AsRef<str>, U: AsRef<str>> {
+    api_key: A,
+    username: U,
+}
+
+impl<A: AsRef<str>, U: AsRef<str>> ClientBuilder<A, U> {
+    pub fn new(api_key: A, username: U) -> Self {
+        Self { api_key, username }
+    }
+
+    pub fn build(self) -> Client {
+        Client {
+            api_key: self.api_key.as_ref().to_string(),
+            username: self.username.as_ref().to_string(),
+        }
+    }
 }
 
 pub struct Client {
@@ -104,7 +125,7 @@ async fn get_page<A: AsRef<str>, U: AsRef<str>>(
     let retry = RetryDelay::new(5);
     let mut errors: Vec<Error> = Vec::new();
     for sleep_time in retry {
-        let res = CLIENT.get(&(url).to_string()).send().await;
+        let res = DEFAULT_CLIENT.get(&(url).to_string()).send().await;
         match res {
             Ok(res) => {
                 let page: RecentTracksResponse = res.json().await?;
@@ -133,16 +154,13 @@ async fn get_page<A: AsRef<str>, U: AsRef<str>>(
 }
 
 impl Client {
-    pub fn new<A: AsRef<str>, U: AsRef<str>>(api_key: A, username: U) -> Self {
-        Client {
-            api_key: api_key.as_ref().to_string(),
-            username: username.as_ref().to_string(),
-        }
+    pub fn from_env<U: AsRef<str>>(username: U) -> Self {
+        Self::try_from_env(username).unwrap()
     }
 
-    pub fn from_env<U: AsRef<str>>(username: U) -> Self {
-        let api_key = env::var("LASTFM_API_KEY").expect("LASTFM_API_KEY not set");
-        Client::new(api_key, username)
+    pub fn try_from_env<U: AsRef<str>>(username: U) -> Result<Self, VarError> {
+        let api_key = env::var("LASTFM_API_KEY")?;
+        Ok(ClientBuilder::new(api_key, username).build())
     }
 
     pub async fn now_playing(&self) -> Result<Option<NowPlayingTrack>, Error> {
