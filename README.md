@@ -16,8 +16,11 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-lastfm = "0.1.0"
+lastfm = "*"
 ```
+
+Replace the `*` with the actual version you want to use.
+
 
 Alternatively you can run:
 
