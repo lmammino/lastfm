@@ -26,6 +26,7 @@ lazy_static! {
         .expect("Cannot initialize HTTP client");
 }
 
+// TODO: store A & U as String and keep the AsRef<str> only in the constructors
 pub struct ClientBuilder<A: AsRef<str>, U: AsRef<str>> {
     api_key: A,
     username: U,
@@ -43,6 +44,7 @@ impl<A: AsRef<str>, U: AsRef<str>> ClientBuilder<A, U> {
         }
     }
 
+    // TODO: the &mut self makes it impossible to use the builder pattern (chain calls)
     pub fn reqwest_client(&mut self, client: reqwest::Client) -> &mut Self {
         self.reqwest_client = Some(client);
         self
@@ -181,6 +183,7 @@ async fn get_page<A: AsRef<str>, U: AsRef<str>>(
 }
 
 impl Client {
+    // TODO: move these 2 functions to the builder (or have similar ones in the builder too)
     pub fn from_env<U: AsRef<str>>(username: U) -> Self {
         Self::try_from_env(username).unwrap()
     }
