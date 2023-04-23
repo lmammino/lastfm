@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 
 pub(crate) struct RetryDelay {
     n: usize,
@@ -10,6 +10,12 @@ pub(crate) struct RetryDelay {
 impl RetryDelay {
     pub fn new(max_retry: usize) -> Self {
         Self { n: 0, max_retry }
+    }
+}
+
+impl Default for RetryDelay {
+    fn default() -> Self {
+        RetryDelay::new(5)
     }
 }
 
