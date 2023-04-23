@@ -29,17 +29,38 @@ lazy_static! {
 pub struct ClientBuilder<A: AsRef<str>, U: AsRef<str>> {
     api_key: A,
     username: U,
+    reqwest_client: Option<reqwest::Client>,
+    base_url: Option<Url>,
 }
 
 impl<A: AsRef<str>, U: AsRef<str>> ClientBuilder<A, U> {
     pub fn new(api_key: A, username: U) -> Self {
-        Self { api_key, username }
+        Self {
+            api_key,
+            username,
+            reqwest_client: None,
+            base_url: None,
+        }
+    }
+
+    pub fn reqwest_client(&mut self, client: reqwest::Client) -> &mut Self {
+        self.reqwest_client = Some(client);
+        self
+    }
+
+    pub fn base_url(&mut self, base_url: Url) -> &mut Self {
+        self.base_url = Some(base_url);
+        self
     }
 
     pub fn build(self) -> Client {
         Client {
             api_key: self.api_key.as_ref().to_string(),
             username: self.username.as_ref().to_string(),
+            reqwest_client: self
+                .reqwest_client
+                .unwrap_or_else(|| DEFAULT_CLIENT.clone()),
+            base_url: self.base_url.unwrap_or_else(|| BASE_URL.parse().unwrap()),
         }
     }
 }
@@ -47,6 +68,8 @@ impl<A: AsRef<str>, U: AsRef<str>> ClientBuilder<A, U> {
 pub struct Client {
     api_key: String,
     username: String,
+    reqwest_client: reqwest::Client,
+    base_url: Url,
 }
 
 pub struct RecentTracksFetcher {
@@ -56,6 +79,8 @@ pub struct RecentTracksFetcher {
     from: Option<i64>,
     to: Option<i64>,
     pub total_tracks: u64,
+    reqwest_client: reqwest::Client,
+    base_url: Url,
 }
 
 impl RecentTracksFetcher {
@@ -82,7 +107,7 @@ impl RecentTracksFetcher {
                         yield t;
                     }
                     None => {
-                        let next_page = get_page(&self.api_key, &self.username, 200, self.from, self.to).await?;
+                        let next_page = get_page(&self.reqwest_client, &self.base_url, &self.api_key, &self.username, 200, self.from, self.to).await?;
                         if next_page.tracks.is_empty() {
                             break;
                         }
@@ -97,6 +122,8 @@ impl RecentTracksFetcher {
 }
 
 async fn get_page<A: AsRef<str>, U: AsRef<str>>(
+    client: &reqwest::Client,
+    base_url: &Url,
     api_key: A,
     username: U,
     limit: u32,
@@ -120,12 +147,12 @@ async fn get_page<A: AsRef<str>, U: AsRef<str>>(
         url_query.push(("to", to.to_string()));
     }
 
-    let url = Url::parse_with_params(BASE_URL, &url_query).unwrap();
+    let url = Url::parse_with_params(base_url.as_str(), &url_query).unwrap();
 
-    let retry = RetryDelay::new(5);
+    let retry = RetryDelay::default();
     let mut errors: Vec<Error> = Vec::new();
     for sleep_time in retry {
-        let res = DEFAULT_CLIENT.get(&(url).to_string()).send().await;
+        let res = client.get(&(url).to_string()).send().await;
         match res {
             Ok(res) => {
                 let page: RecentTracksResponse = res.json().await?;
@@ -164,7 +191,16 @@ impl Client {
     }
 
     pub async fn now_playing(&self) -> Result<Option<NowPlayingTrack>, Error> {
-        let page = get_page(&self.api_key, &self.username, 1, None, None).await?;
+        let page = get_page(
+            &self.reqwest_client,
+            &self.base_url,
+            &self.api_key,
+            &self.username,
+            1,
+            None,
+            None,
+        )
+        .await?;
 
         match page.tracks.first() {
             Some(Track::NowPlaying(t)) => Ok(Some(t.clone())),
@@ -181,7 +217,16 @@ impl Client {
         from: Option<i64>,
         to: Option<i64>,
     ) -> Result<RecentTracksFetcher, Error> {
-        let page = get_page(&self.api_key, &self.username, 200, from, to).await?;
+        let page = get_page(
+            &self.reqwest_client,
+            &self.base_url,
+            &self.api_key,
+            &self.username,
+            200,
+            from,
+            to,
+        )
+        .await?;
 
         let mut fetcher = RecentTracksFetcher {
             api_key: self.api_key.clone(),
@@ -190,6 +235,8 @@ impl Client {
             from,
             to,
             total_tracks: page.total_tracks,
+            reqwest_client: self.reqwest_client,
+            base_url: self.base_url,
         };
 
         fetcher.update_current_page(page);
