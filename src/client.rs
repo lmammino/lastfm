@@ -26,39 +26,46 @@ lazy_static! {
         .expect("Cannot initialize HTTP client");
 }
 
-// TODO: store A & U as String and keep the AsRef<str> only in the constructors
-pub struct ClientBuilder<A: AsRef<str>, U: AsRef<str>> {
-    api_key: A,
-    username: U,
+pub struct ClientBuilder {
+    api_key: String,
+    username: String,
     reqwest_client: Option<reqwest::Client>,
     base_url: Option<Url>,
 }
 
-impl<A: AsRef<str>, U: AsRef<str>> ClientBuilder<A, U> {
-    pub fn new(api_key: A, username: U) -> Self {
+impl ClientBuilder {
+    pub fn new<A: AsRef<str>, U: AsRef<str>>(api_key: A, username: U) -> Self {
         Self {
-            api_key,
-            username,
+            api_key: api_key.as_ref().to_string(),
+            username: username.as_ref().to_string(),
             reqwest_client: None,
             base_url: None,
         }
     }
 
-    // TODO: the &mut self makes it impossible to use the builder pattern (chain calls)
-    pub fn reqwest_client(&mut self, client: reqwest::Client) -> &mut Self {
+    pub fn from_env<U: AsRef<str>>(username: U) -> Self {
+        Self::try_from_env(username).unwrap()
+    }
+
+    pub fn try_from_env<U: AsRef<str>>(username: U) -> Result<Self, VarError> {
+        let api_key = env::var("LASTFM_API_KEY")?;
+        Ok(ClientBuilder::new(api_key, username))
+    }
+
+    pub fn reqwest_client(mut self, client: reqwest::Client) -> Self {
         self.reqwest_client = Some(client);
         self
     }
 
-    pub fn base_url(&mut self, base_url: Url) -> &mut Self {
+    pub fn base_url(mut self, base_url: Url) -> Self {
         self.base_url = Some(base_url);
         self
     }
 
     pub fn build(self) -> Client {
         Client {
-            api_key: self.api_key.as_ref().to_string(),
-            username: self.username.as_ref().to_string(),
+            api_key: self.api_key,
+            username: self.username,
             reqwest_client: self
                 .reqwest_client
                 .unwrap_or_else(|| DEFAULT_CLIENT.clone()),
@@ -67,6 +74,7 @@ impl<A: AsRef<str>, U: AsRef<str>> ClientBuilder<A, U> {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Client {
     api_key: String,
     username: String,
@@ -183,14 +191,12 @@ async fn get_page<A: AsRef<str>, U: AsRef<str>>(
 }
 
 impl Client {
-    // TODO: move these 2 functions to the builder (or have similar ones in the builder too)
     pub fn from_env<U: AsRef<str>>(username: U) -> Self {
-        Self::try_from_env(username).unwrap()
+        ClientBuilder::try_from_env(username).unwrap().build()
     }
 
     pub fn try_from_env<U: AsRef<str>>(username: U) -> Result<Self, VarError> {
-        let api_key = env::var("LASTFM_API_KEY")?;
-        Ok(ClientBuilder::new(api_key, username).build())
+        Ok(ClientBuilder::try_from_env(username)?.build())
     }
 
     pub async fn now_playing(&self) -> Result<Option<NowPlayingTrack>, Error> {
