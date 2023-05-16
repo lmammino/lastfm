@@ -124,6 +124,7 @@ pub mod errors;
 pub mod imageset;
 pub mod lfm_date;
 pub mod recent_tracks_page;
-pub mod retry_delay;
+pub mod retry_strategy;
 pub mod track;
 pub use client::{Client, ClientBuilder};
+pub use reqwest;

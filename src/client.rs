@@ -1,12 +1,13 @@
-use super::{
+use crate::{
     errors::Error,
-    recent_tracks_page::RecentTracksPage,
+    recent_tracks_page::{RecentTracksPage, RecentTracksResponse},
+    retry_strategy::{JitteredBackoff, RetryStrategy},
     track::{NowPlayingTrack, RecordedTrack, Track},
 };
-use crate::{recent_tracks_page::RecentTracksResponse, retry_delay::RetryDelay};
 use async_stream::try_stream;
 use std::{
     env::{self, VarError},
+    fmt::Debug,
     time::Duration,
 };
 use tokio_stream::Stream;
@@ -31,6 +32,7 @@ pub struct ClientBuilder {
     username: String,
     reqwest_client: Option<reqwest::Client>,
     base_url: Option<Url>,
+    retry_strategy: Option<Box<dyn RetryStrategy>>,
 }
 
 impl ClientBuilder {
@@ -40,6 +42,7 @@ impl ClientBuilder {
             username: username.as_ref().to_string(),
             reqwest_client: None,
             base_url: None,
+            retry_strategy: None,
         }
     }
 
@@ -62,6 +65,11 @@ impl ClientBuilder {
         self
     }
 
+    pub fn retry_strategy(mut self, retry_strategy: Box<dyn RetryStrategy>) -> Self {
+        self.retry_strategy = Some(retry_strategy);
+        self
+    }
+
     pub fn build(self) -> Client {
         Client {
             api_key: self.api_key,
@@ -70,16 +78,30 @@ impl ClientBuilder {
                 .reqwest_client
                 .unwrap_or_else(|| DEFAULT_CLIENT.clone()),
             base_url: self.base_url.unwrap_or_else(|| BASE_URL.parse().unwrap()),
+            retry_strategy: self
+                .retry_strategy
+                .unwrap_or_else(|| Box::from(JitteredBackoff::default())),
         }
     }
 }
 
-#[derive(Debug, Clone)]
 pub struct Client {
     api_key: String,
     username: String,
     reqwest_client: reqwest::Client,
     base_url: Url,
+    retry_strategy: Box<dyn RetryStrategy>,
+}
+
+impl Debug for Client {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Client")
+            .field("api_key", &self.api_key)
+            .field("username", &self.username)
+            .field("reqwest_client", &self.reqwest_client)
+            .field("base_url", &self.base_url)
+            .finish()
+    }
 }
 
 pub struct RecentTracksFetcher {
@@ -91,6 +113,7 @@ pub struct RecentTracksFetcher {
     pub total_tracks: u64,
     reqwest_client: reqwest::Client,
     base_url: Url,
+    retry_strategy: Box<dyn RetryStrategy>,
 }
 
 impl RecentTracksFetcher {
@@ -117,7 +140,16 @@ impl RecentTracksFetcher {
                         yield t;
                     }
                     None => {
-                        let next_page = get_page(&self.reqwest_client, &self.base_url, &self.api_key, &self.username, 200, self.from, self.to).await?;
+                        let next_page = get_page(GetPageOptions {
+                            client: &self.reqwest_client,
+                            retry_strategy: &*self.retry_strategy,
+                            base_url: &self.base_url,
+                            api_key: &self.api_key,
+                            username: &self.username,
+                            limit: 200,
+                            from: self.from,
+                            to: self.to
+                        }).await?;
                         if next_page.tracks.is_empty() {
                             break;
                         }
@@ -131,38 +163,41 @@ impl RecentTracksFetcher {
     }
 }
 
-async fn get_page<A: AsRef<str>, U: AsRef<str>>(
-    client: &reqwest::Client,
-    base_url: &Url,
-    api_key: A,
-    username: U,
+struct GetPageOptions<'a> {
+    client: &'a reqwest::Client,
+    retry_strategy: &'a dyn RetryStrategy,
+    base_url: &'a Url,
+    api_key: &'a str,
+    username: &'a str,
     limit: u32,
     from: Option<i64>,
     to: Option<i64>,
-) -> Result<RecentTracksPage, Error> {
+}
+
+async fn get_page(options: GetPageOptions<'_>) -> Result<RecentTracksPage, Error> {
     let mut url_query = vec![
         ("method", "user.getrecenttracks".to_string()),
-        ("user", username.as_ref().to_string()),
+        ("user", options.username.to_string()),
         ("format", "json".to_string()),
         ("extended", "1".to_string()),
-        ("limit", limit.to_string()),
-        ("api_key", api_key.as_ref().to_string()),
+        ("limit", options.limit.to_string()),
+        ("api_key", options.api_key.to_string()),
     ];
 
-    if let Some(from) = from {
+    if let Some(from) = options.from {
         url_query.push(("from", from.to_string()));
     }
 
-    if let Some(to) = to {
+    if let Some(to) = options.to {
         url_query.push(("to", to.to_string()));
     }
 
-    let url = Url::parse_with_params(base_url.as_str(), &url_query).unwrap();
+    let url = Url::parse_with_params(options.base_url.as_str(), &url_query).unwrap();
 
-    let retry = RetryDelay::default();
     let mut errors: Vec<Error> = Vec::new();
-    for sleep_time in retry {
-        let res = client.get(&(url).to_string()).send().await;
+    let mut num_retries: usize = 0;
+    while let Some(retry_delay) = options.retry_strategy.should_retry_after(num_retries) {
+        let res = options.client.get(&(url).to_string()).send().await;
         match res {
             Ok(res) => {
                 let page: RecentTracksResponse = res.json().await?;
@@ -175,16 +210,17 @@ async fn get_page<A: AsRef<str>, U: AsRef<str>>(
                         if !e.is_retriable() {
                             return Err(e.into());
                         }
-                        tokio::time::sleep(sleep_time).await;
+                        tokio::time::sleep(retry_delay).await;
                     }
                 }
             }
             Err(e) => {
                 tracing::error!("Error: {}", e);
                 errors.push(e.into());
-                tokio::time::sleep(sleep_time).await;
+                tokio::time::sleep(retry_delay).await;
             }
         }
+        num_retries += 1;
     }
 
     Err(Error::TooManyRetry(errors))
@@ -200,15 +236,16 @@ impl Client {
     }
 
     pub async fn now_playing(&self) -> Result<Option<NowPlayingTrack>, Error> {
-        let page = get_page(
-            &self.reqwest_client,
-            &self.base_url,
-            &self.api_key,
-            &self.username,
-            1,
-            None,
-            None,
-        )
+        let page = get_page(GetPageOptions {
+            client: &self.reqwest_client,
+            retry_strategy: &*self.retry_strategy,
+            base_url: &self.base_url,
+            api_key: &self.api_key,
+            username: &self.username,
+            limit: 1,
+            from: None,
+            to: None,
+        })
         .await?;
 
         match page.tracks.first() {
@@ -226,15 +263,16 @@ impl Client {
         from: Option<i64>,
         to: Option<i64>,
     ) -> Result<RecentTracksFetcher, Error> {
-        let page = get_page(
-            &self.reqwest_client,
-            &self.base_url,
-            &self.api_key,
-            &self.username,
-            200,
+        let page = get_page(GetPageOptions {
+            client: &self.reqwest_client,
+            retry_strategy: &*self.retry_strategy,
+            base_url: &self.base_url,
+            api_key: &self.api_key,
+            username: &self.username,
+            limit: 200,
             from,
             to,
-        )
+        })
         .await?;
 
         let mut fetcher = RecentTracksFetcher {
@@ -246,6 +284,7 @@ impl Client {
             total_tracks: page.total_tracks,
             reqwest_client: self.reqwest_client,
             base_url: self.base_url,
+            retry_strategy: self.retry_strategy,
         };
 
         fetcher.update_current_page(page);
