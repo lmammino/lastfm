@@ -93,10 +93,21 @@ pub struct Client {
     retry_strategy: Box<dyn RetryStrategy>,
 }
 
+fn mask_api_key(api_key: &str) -> String {
+    api_key
+        .chars()
+        .enumerate()
+        .map(|(i, c)| match i {
+            0 | 1 | 2 => c,
+            _ => '*',
+        })
+        .collect()
+}
+
 impl Debug for Client {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Client")
-            .field("api_key", &self.api_key)
+            .field("api_key", &mask_api_key(&self.api_key).as_str())
             .field("username", &self.username)
             .field("reqwest_client", &self.reqwest_client)
             .field("base_url", &self.base_url)
