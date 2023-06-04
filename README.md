@@ -1,4 +1,4 @@
-# rust-lastfm
+# lastfm
 
 [![Build Status](https://github.com/lmammino/lastfm/actions/workflows/rust.yml/badge.svg)](https://github.com/lmammino/lastfm/actions/workflows/rust.yml)
 [![Crates.io](https://img.shields.io/crates/v/lastfm.svg)](https://crates.io/crates/lastfm)
