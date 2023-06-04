@@ -1,18 +1,26 @@
-use super::{
+//! # Client
+//!
+//! The main client module for the Last.fm API.
+//!
+//! This module contains the [`Client`] struct and its methods.
+//! It also provides a [`ClientBuilder`] to create a new [`Client`].
+use crate::{
     errors::Error,
-    recent_tracks_page::RecentTracksPage,
+    recent_tracks_page::{RecentTracksPage, RecentTracksResponse},
+    retry_strategy::{JitteredBackoff, RetryStrategy},
     track::{NowPlayingTrack, RecordedTrack, Track},
 };
-use crate::{recent_tracks_page::RecentTracksResponse, retry_delay::RetryDelay};
 use async_stream::try_stream;
 use std::{
     env::{self, VarError},
+    fmt::Debug,
     time::Duration,
 };
 use tokio_stream::Stream;
 use url::Url;
 
-const BASE_URL: &str = "https://ws.audioscrobbler.com/2.0/";
+/// The default base URL for the Last.fm API.
+pub const DEFAULT_BASE_URL: &str = "https://ws.audioscrobbler.com/2.0/";
 
 lazy_static! {
     static ref DEFAULT_CLIENT: reqwest::Client = reqwest::ClientBuilder::new()
@@ -26,42 +34,76 @@ lazy_static! {
         .expect("Cannot initialize HTTP client");
 }
 
+/// Utility function that masks the API key by replacing all but the first 3 characters with `*`.
+fn mask_api_key(api_key: &str) -> String {
+    api_key
+        .chars()
+        .enumerate()
+        .map(|(i, c)| match i {
+            0 | 1 | 2 => c,
+            _ => '*',
+        })
+        .collect()
+}
+
+/// A builder for the [`Client`] struct.
 pub struct ClientBuilder {
     api_key: String,
     username: String,
     reqwest_client: Option<reqwest::Client>,
     base_url: Option<Url>,
+    retry_strategy: Option<Box<dyn RetryStrategy>>,
 }
 
 impl ClientBuilder {
+    /// Creates a new [`ClientBuilder`] with the given API key and username.
     pub fn new<A: AsRef<str>, U: AsRef<str>>(api_key: A, username: U) -> Self {
         Self {
             api_key: api_key.as_ref().to_string(),
             username: username.as_ref().to_string(),
             reqwest_client: None,
             base_url: None,
+            retry_strategy: None,
         }
     }
 
+    /// Creates a new [`ClientBuilder`] with the given username.
+    /// This is a shortcut for [`ClientBuilder::try_from_env`] that panics instead of returning an error.
+    ///
+    /// # Panics
+    /// This methods expects the `LASTFM_API_KEY` environment variable to be set and it would panic otherwise.
     pub fn from_env<U: AsRef<str>>(username: U) -> Self {
-        Self::try_from_env(username).unwrap()
+        Self::try_from_env(username).expect("Cannot read LASTFM_API_KEY from environment")
     }
 
+    /// Creates a new [`ClientBuilder`] with the given username.
+    /// This methods expects the `LASTFM_API_KEY` environment variable to be set and it would return an error otherwise.
     pub fn try_from_env<U: AsRef<str>>(username: U) -> Result<Self, VarError> {
         let api_key = env::var("LASTFM_API_KEY")?;
         Ok(ClientBuilder::new(api_key, username))
     }
 
+    /// Sets the [`reqwest::Client`] to use for the requests.
     pub fn reqwest_client(mut self, client: reqwest::Client) -> Self {
         self.reqwest_client = Some(client);
         self
     }
 
+    /// Sets the base URL for the Last.fm API.
     pub fn base_url(mut self, base_url: Url) -> Self {
         self.base_url = Some(base_url);
         self
     }
 
+    /// Sets the retry strategy to use for the requests.
+    ///
+    /// For more details on how you can create a custom retry strategy, consult the [`crate::retry_strategy::RetryStrategy`] trait.
+    pub fn retry_strategy(mut self, retry_strategy: Box<dyn RetryStrategy>) -> Self {
+        self.retry_strategy = Some(retry_strategy);
+        self
+    }
+
+    /// Builds the [`Client`] instance.
     pub fn build(self) -> Client {
         Client {
             api_key: self.api_key,
@@ -69,28 +111,49 @@ impl ClientBuilder {
             reqwest_client: self
                 .reqwest_client
                 .unwrap_or_else(|| DEFAULT_CLIENT.clone()),
-            base_url: self.base_url.unwrap_or_else(|| BASE_URL.parse().unwrap()),
+            base_url: self
+                .base_url
+                .unwrap_or_else(|| DEFAULT_BASE_URL.parse().unwrap()),
+            retry_strategy: self
+                .retry_strategy
+                .unwrap_or_else(|| Box::from(JitteredBackoff::default())),
         }
     }
 }
 
-#[derive(Debug, Clone)]
+/// A client for the Last.fm API.
 pub struct Client {
     api_key: String,
     username: String,
     reqwest_client: reqwest::Client,
     base_url: Url,
+    retry_strategy: Box<dyn RetryStrategy>,
 }
 
+impl Debug for Client {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Client")
+            .field("api_key", &mask_api_key(&self.api_key).as_str())
+            .field("username", &self.username)
+            .field("reqwest_client", &self.reqwest_client)
+            .field("base_url", &self.base_url)
+            .finish()
+    }
+}
+
+/// Structs that can be used to get a stream of [`RecordedTrack`]s.
+#[non_exhaustive]
 pub struct RecentTracksFetcher {
     api_key: String,
     username: String,
     current_page: Vec<RecordedTrack>,
     from: Option<i64>,
     to: Option<i64>,
+    /// The total number of tracks available in the stream.
     pub total_tracks: u64,
     reqwest_client: reqwest::Client,
     base_url: Url,
+    retry_strategy: Box<dyn RetryStrategy>,
 }
 
 impl RecentTracksFetcher {
@@ -109,6 +172,7 @@ impl RecentTracksFetcher {
         self.to = to;
     }
 
+    /// Converts the current instance into a stream of [`RecordedTrack`]s.
     pub fn into_stream(mut self) -> impl Stream<Item = Result<RecordedTrack, Error>> {
         let recent_tracks = try_stream! {
             loop {
@@ -117,7 +181,16 @@ impl RecentTracksFetcher {
                         yield t;
                     }
                     None => {
-                        let next_page = get_page(&self.reqwest_client, &self.base_url, &self.api_key, &self.username, 200, self.from, self.to).await?;
+                        let next_page = get_page(GetPageOptions {
+                            client: &self.reqwest_client,
+                            retry_strategy: &*self.retry_strategy,
+                            base_url: &self.base_url,
+                            api_key: &self.api_key,
+                            username: &self.username,
+                            limit: 200,
+                            from: self.from,
+                            to: self.to
+                        }).await?;
                         if next_page.tracks.is_empty() {
                             break;
                         }
@@ -131,38 +204,43 @@ impl RecentTracksFetcher {
     }
 }
 
-async fn get_page<A: AsRef<str>, U: AsRef<str>>(
-    client: &reqwest::Client,
-    base_url: &Url,
-    api_key: A,
-    username: U,
+/// Configuration options used for the [`Client::get_page`] function.
+struct GetPageOptions<'a> {
+    client: &'a reqwest::Client,
+    retry_strategy: &'a dyn RetryStrategy,
+    base_url: &'a Url,
+    api_key: &'a str,
+    username: &'a str,
     limit: u32,
     from: Option<i64>,
     to: Option<i64>,
-) -> Result<RecentTracksPage, Error> {
+}
+
+/// Gets a page of tracks from the Last.fm API.
+async fn get_page(options: GetPageOptions<'_>) -> Result<RecentTracksPage, Error> {
     let mut url_query = vec![
         ("method", "user.getrecenttracks".to_string()),
-        ("user", username.as_ref().to_string()),
+        ("user", options.username.to_string()),
         ("format", "json".to_string()),
         ("extended", "1".to_string()),
-        ("limit", limit.to_string()),
-        ("api_key", api_key.as_ref().to_string()),
+        ("limit", options.limit.to_string()),
+        ("api_key", options.api_key.to_string()),
     ];
 
-    if let Some(from) = from {
+    if let Some(from) = options.from {
         url_query.push(("from", from.to_string()));
     }
 
-    if let Some(to) = to {
+    if let Some(to) = options.to {
         url_query.push(("to", to.to_string()));
     }
 
-    let url = Url::parse_with_params(base_url.as_str(), &url_query).unwrap();
+    let url = Url::parse_with_params(options.base_url.as_str(), &url_query).unwrap();
 
-    let retry = RetryDelay::default();
     let mut errors: Vec<Error> = Vec::new();
-    for sleep_time in retry {
-        let res = client.get(&(url).to_string()).send().await;
+    let mut num_retries: usize = 0;
+    while let Some(retry_delay) = options.retry_strategy.should_retry_after(num_retries) {
+        let res = options.client.get(&(url).to_string()).send().await;
         match res {
             Ok(res) => {
                 let page: RecentTracksResponse = res.json().await?;
@@ -175,40 +253,52 @@ async fn get_page<A: AsRef<str>, U: AsRef<str>>(
                         if !e.is_retriable() {
                             return Err(e.into());
                         }
-                        tokio::time::sleep(sleep_time).await;
+                        tokio::time::sleep(retry_delay).await;
                     }
                 }
             }
             Err(e) => {
                 tracing::error!("Error: {}", e);
                 errors.push(e.into());
-                tokio::time::sleep(sleep_time).await;
+                tokio::time::sleep(retry_delay).await;
             }
         }
+        num_retries += 1;
     }
 
     Err(Error::TooManyRetry(errors))
 }
 
 impl Client {
+    /// Creates a new [`Client`] with the given username.
+    /// The API key is read from the `LASTFM_API_KEY` environment variable.
+    /// This method is a shortcut for [`ClientBuilder::from_env`] but, in case of failure, it will panic rather than returning an error.
+    ///
+    /// # Panics
+    /// If the environment variable is not set, this function will panic.
     pub fn from_env<U: AsRef<str>>(username: U) -> Self {
         ClientBuilder::try_from_env(username).unwrap().build()
     }
 
+    /// Creates a new [`Client`] with the given username.
+    /// The API key is read from the `LASTFM_API_KEY` environment variable.
+    /// If the environment variable is not set, this function will return an error.
     pub fn try_from_env<U: AsRef<str>>(username: U) -> Result<Self, VarError> {
         Ok(ClientBuilder::try_from_env(username)?.build())
     }
 
+    /// Fetches the currently playing track for the user (if any)
     pub async fn now_playing(&self) -> Result<Option<NowPlayingTrack>, Error> {
-        let page = get_page(
-            &self.reqwest_client,
-            &self.base_url,
-            &self.api_key,
-            &self.username,
-            1,
-            None,
-            None,
-        )
+        let page = get_page(GetPageOptions {
+            client: &self.reqwest_client,
+            retry_strategy: &*self.retry_strategy,
+            base_url: &self.base_url,
+            api_key: &self.api_key,
+            username: &self.username,
+            limit: 1,
+            from: None,
+            to: None,
+        })
         .await?;
 
         match page.tracks.first() {
@@ -217,24 +307,29 @@ impl Client {
         }
     }
 
+    /// Creates a new [`RecentTracksFetcher`] that can be used to fetch all of the user's recent tracks.
     pub async fn all_tracks(self) -> Result<RecentTracksFetcher, Error> {
         self.recent_tracks(None, None).await
     }
 
+    /// Creates a new [`RecentTracksFetcher`] that can be used to fetch the user's recent tracks in a given time range.
+    ///
+    /// The `from` and `to` parameters are Unix timestamps (in seconds).
     pub async fn recent_tracks(
         self,
         from: Option<i64>,
         to: Option<i64>,
     ) -> Result<RecentTracksFetcher, Error> {
-        let page = get_page(
-            &self.reqwest_client,
-            &self.base_url,
-            &self.api_key,
-            &self.username,
-            200,
+        let page = get_page(GetPageOptions {
+            client: &self.reqwest_client,
+            retry_strategy: &*self.retry_strategy,
+            base_url: &self.base_url,
+            api_key: &self.api_key,
+            username: &self.username,
+            limit: 200,
             from,
             to,
-        )
+        })
         .await?;
 
         let mut fetcher = RecentTracksFetcher {
@@ -246,6 +341,7 @@ impl Client {
             total_tracks: page.total_tracks,
             reqwest_client: self.reqwest_client,
             base_url: self.base_url,
+            retry_strategy: self.retry_strategy,
         };
 
         fetcher.update_current_page(page);

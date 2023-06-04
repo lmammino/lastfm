@@ -1,6 +1,10 @@
+//! # Error response
+//!
+//! Error response from Last.fm API
 use serde::{Deserialize, Serialize};
 use std::{error::Error, fmt::Display};
 
+/// Error response from Last.fm API
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ErrorResponse {
     pub error: u32,
@@ -8,6 +12,9 @@ pub struct ErrorResponse {
 }
 
 impl ErrorResponse {
+    /// determine if the error is retriable (there is a chance it will work if retried) or not.
+    ///
+    /// See <https://www.last.fm/api/errorcodes> for more details.
     pub fn is_retriable(&self) -> bool {
         // 2 : Invalid service - This service does not exist
         // 3 : Invalid Method - No method with that name in this package

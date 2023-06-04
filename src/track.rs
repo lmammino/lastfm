@@ -1,17 +1,20 @@
+//! # Tracks
+//!
+//! Defines the [`Track`] struct and its methods.
+use crate::artist::Artist;
+use crate::imageset::ImageSet;
 use chrono::{DateTime, LocalResult, TimeZone, Utc};
 use serde::{de::Error, Deserialize, Deserializer, Serialize};
 use serde_json::{Map, Value};
 
-use crate::artist::Artist;
-
-use super::imageset::ImageSet;
-
+/// A Last.fm track (can either be currently playing or recorded)
 #[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Track {
     NowPlaying(NowPlayingTrack),
     Recorded(RecordedTrack),
 }
 
+/// A Last.fm track that is currently playing.
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NowPlayingTrack {
     pub artist: Artist,
@@ -21,6 +24,7 @@ pub struct NowPlayingTrack {
     pub url: String,
 }
 
+/// A Last.fm track that has been recorded.
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordedTrack {
     pub artist: Artist,
