@@ -1,7 +1,10 @@
+//! # Artist
+//!
+//! defines the [`Artist`] struct and its methods.
+use crate::imageset::ImageSet;
 use serde::{Deserialize, Serialize};
 
-use super::imageset::ImageSet;
-
+/// A Last.fm artist.
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Artist {
     pub image: ImageSet,

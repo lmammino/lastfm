@@ -1,8 +1,11 @@
-use std::{collections::HashMap, ops::Deref};
-
+//! # Last.fm Date
+//!
+//! Defines the [`LfmDate`] struct and its methods.
 use chrono::{DateTime, LocalResult, TimeZone, Utc};
 use serde::{de::Error, Deserialize, Deserializer, Serialize};
+use std::{collections::HashMap, ops::Deref};
 
+/// A Last.fm date.
 #[derive(Serialize, Debug, Clone)]
 pub struct LfmDate(DateTime<Utc>);
 

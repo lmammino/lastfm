@@ -1,6 +1,10 @@
-use super::error_response::ErrorResponse;
+//! # Errors
+//!
+//! Errors that can occur when interacting with the LastFM Client.
+use crate::error_response::ErrorResponse;
 use thiserror::Error;
 
+/// Errors that can occur when interacting with the LastFM Client.
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("HTTP error: {0}")]

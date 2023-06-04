@@ -1,7 +1,10 @@
+//! # Image set
+//!
+//! defines the [`ImageSet`] struct and its methods.
+use serde::{de::Error, Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 
-use serde::{de::Error, Deserialize, Deserializer, Serialize};
-
+/// A set of images for a Last.fm entity.
 #[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ImageSet {
     pub small: Option<String>,

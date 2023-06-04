@@ -1,7 +1,11 @@
-use super::{error_response::ErrorResponse, track::Track};
+//! # Recent tracks page
+//!
+//! Defines the [`RecentTracksPage`] struct and its methods.
+use crate::{error_response::ErrorResponse, track::Track};
 use serde::{de::Error, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
+/// A Last.fm recent tracks response. Can either be an error or an actual page of recent tracks.
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum RecentTracksResponse {
@@ -9,6 +13,7 @@ pub enum RecentTracksResponse {
     RecentTracksPage(RecentTracksPage),
 }
 
+/// A Last.fm recent tracks page.
 #[derive(Serialize, Debug, Clone)]
 pub struct RecentTracksPage {
     pub total_tracks: u64,
