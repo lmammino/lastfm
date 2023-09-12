@@ -1,4 +1,4 @@
-use lastfm::{retry_strategy::RetryStrategy, ClientBuilder};
+use lastfm::{retry_strategy::RetryStrategy, Client};
 use std::time::Duration;
 
 /// A retry strategy that will retry 3 times with the following delays:
@@ -23,7 +23,9 @@ impl RetryStrategy for SimpleRetryStrategy {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let retry_strategy = SimpleRetryStrategy {};
 
-    let client = ClientBuilder::new("some-api-key", "loige")
+    let client = Client::builder()
+        .api_key("some-api-key".to_string())
+        .username("loige".to_string())
         .retry_strategy(Box::from(retry_strategy))
         .build();
 

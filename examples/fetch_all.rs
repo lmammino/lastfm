@@ -8,7 +8,7 @@ use lastfm::Client;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
-    let client = Client::from_env("loige");
+    let client = Client::<String, &str>::from_env("loige");
 
     let now_playing = client.now_playing().await?;
     if let Some(track) = now_playing {

@@ -17,6 +17,7 @@ use std::{
     time::Duration,
 };
 use tokio_stream::Stream;
+use typed_builder::TypedBuilder;
 use url::Url;
 
 /// The default base URL for the Last.fm API.
@@ -40,101 +41,30 @@ fn mask_api_key(api_key: &str) -> String {
         .chars()
         .enumerate()
         .map(|(i, c)| match i {
-            0 | 1 | 2 => c,
+            0..=2 => c,
             _ => '*',
         })
         .collect()
 }
 
-/// A builder for the [`Client`] struct.
-pub struct ClientBuilder {
-    api_key: String,
-    username: String,
-    reqwest_client: Option<reqwest::Client>,
-    base_url: Option<Url>,
-    retry_strategy: Option<Box<dyn RetryStrategy>>,
-}
-
-impl ClientBuilder {
-    /// Creates a new [`ClientBuilder`] with the given API key and username.
-    pub fn new<A: AsRef<str>, U: AsRef<str>>(api_key: A, username: U) -> Self {
-        Self {
-            api_key: api_key.as_ref().to_string(),
-            username: username.as_ref().to_string(),
-            reqwest_client: None,
-            base_url: None,
-            retry_strategy: None,
-        }
-    }
-
-    /// Creates a new [`ClientBuilder`] with the given username.
-    /// This is a shortcut for [`ClientBuilder::try_from_env`] that panics instead of returning an error.
-    ///
-    /// # Panics
-    /// This methods expects the `LASTFM_API_KEY` environment variable to be set and it would panic otherwise.
-    pub fn from_env<U: AsRef<str>>(username: U) -> Self {
-        Self::try_from_env(username).expect("Cannot read LASTFM_API_KEY from environment")
-    }
-
-    /// Creates a new [`ClientBuilder`] with the given username.
-    /// This methods expects the `LASTFM_API_KEY` environment variable to be set and it would return an error otherwise.
-    pub fn try_from_env<U: AsRef<str>>(username: U) -> Result<Self, VarError> {
-        let api_key = env::var("LASTFM_API_KEY")?;
-        Ok(ClientBuilder::new(api_key, username))
-    }
-
-    /// Sets the [`reqwest::Client`] to use for the requests.
-    pub fn reqwest_client(mut self, client: reqwest::Client) -> Self {
-        self.reqwest_client = Some(client);
-        self
-    }
-
-    /// Sets the base URL for the Last.fm API.
-    pub fn base_url(mut self, base_url: Url) -> Self {
-        self.base_url = Some(base_url);
-        self
-    }
-
-    /// Sets the retry strategy to use for the requests.
-    ///
-    /// For more details on how you can create a custom retry strategy, consult the [`crate::retry_strategy::RetryStrategy`] trait.
-    pub fn retry_strategy(mut self, retry_strategy: Box<dyn RetryStrategy>) -> Self {
-        self.retry_strategy = Some(retry_strategy);
-        self
-    }
-
-    /// Builds the [`Client`] instance.
-    pub fn build(self) -> Client {
-        Client {
-            api_key: self.api_key,
-            username: self.username,
-            reqwest_client: self
-                .reqwest_client
-                .unwrap_or_else(|| DEFAULT_CLIENT.clone()),
-            base_url: self
-                .base_url
-                .unwrap_or_else(|| DEFAULT_BASE_URL.parse().unwrap()),
-            retry_strategy: self
-                .retry_strategy
-                .unwrap_or_else(|| Box::from(JitteredBackoff::default())),
-        }
-    }
-}
-
 /// A client for the Last.fm API.
-pub struct Client {
-    api_key: String,
-    username: String,
+#[derive(TypedBuilder)]
+pub struct Client<A: AsRef<str>, U: AsRef<str>> {
+    api_key: A,
+    username: U,
+    #[builder(default = DEFAULT_CLIENT.clone())]
     reqwest_client: reqwest::Client,
+    #[builder(default = DEFAULT_BASE_URL.parse().unwrap())]
     base_url: Url,
+    #[builder(default = Box::from(JitteredBackoff::default()))]
     retry_strategy: Box<dyn RetryStrategy>,
 }
 
-impl Debug for Client {
+impl<A: AsRef<str>, U: AsRef<str>> Debug for Client<A, U> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Client")
-            .field("api_key", &mask_api_key(&self.api_key).as_str())
-            .field("username", &self.username)
+            .field("api_key", &mask_api_key(&self.api_key.as_ref()).as_str())
+            .field("username", &self.username.as_ref())
             .field("reqwest_client", &self.reqwest_client)
             .field("base_url", &self.base_url)
             .finish()
@@ -269,22 +199,26 @@ async fn get_page(options: GetPageOptions<'_>) -> Result<RecentTracksPage, Error
     Err(Error::TooManyRetry(errors))
 }
 
-impl Client {
+impl<A: AsRef<str>, U: AsRef<str>> Client<A, U> {
     /// Creates a new [`Client`] with the given username.
     /// The API key is read from the `LASTFM_API_KEY` environment variable.
     /// This method is a shortcut for [`ClientBuilder::from_env`] but, in case of failure, it will panic rather than returning an error.
     ///
     /// # Panics
     /// If the environment variable is not set, this function will panic.
-    pub fn from_env<U: AsRef<str>>(username: U) -> Self {
-        ClientBuilder::try_from_env(username).unwrap().build()
+    pub fn from_env(username: U) -> Client<String, U> {
+        Self::try_from_env(username).expect("Missing LASTFM_API_KEY environment variable")
     }
 
     /// Creates a new [`Client`] with the given username.
     /// The API key is read from the `LASTFM_API_KEY` environment variable.
     /// If the environment variable is not set, this function will return an error.
-    pub fn try_from_env<U: AsRef<str>>(username: U) -> Result<Self, VarError> {
-        Ok(ClientBuilder::try_from_env(username)?.build())
+    pub fn try_from_env(username: U) -> Result<Client<String, U>, VarError> {
+        let api_key = env::var("LASTFM_API_KEY")?;
+        Ok(Client::builder()
+            .username(username)
+            .api_key(api_key)
+            .build())
     }
 
     /// Fetches the currently playing track for the user (if any)
@@ -293,8 +227,8 @@ impl Client {
             client: &self.reqwest_client,
             retry_strategy: &*self.retry_strategy,
             base_url: &self.base_url,
-            api_key: &self.api_key,
-            username: &self.username,
+            api_key: &self.api_key.as_ref(),
+            username: &self.username.as_ref(),
             limit: 1,
             from: None,
             to: None,
@@ -324,8 +258,8 @@ impl Client {
             client: &self.reqwest_client,
             retry_strategy: &*self.retry_strategy,
             base_url: &self.base_url,
-            api_key: &self.api_key,
-            username: &self.username,
+            api_key: &self.api_key.as_ref(),
+            username: &self.username.as_ref(),
             limit: 200,
             from,
             to,
@@ -333,8 +267,8 @@ impl Client {
         .await?;
 
         let mut fetcher = RecentTracksFetcher {
-            api_key: self.api_key.clone(),
-            username: self.username.clone(),
+            api_key: self.api_key.as_ref().to_string(),
+            username: self.username.as_ref().to_string(),
             current_page: vec![],
             from,
             to,

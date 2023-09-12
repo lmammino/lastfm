@@ -31,7 +31,7 @@
 //! ```rust,no_run
 //! # use lastfm::Client;
 //! #
-//! let client = Client::from_env("YOUR_USERNAME");
+//! let client = Client::<String, &str>::from_env("YOUR_USERNAME");
 //! ```
 //!
 //! Note: this method will panic if `LASTFM_API_KEY` is not set.
@@ -41,7 +41,7 @@
 //! ```rust,no_run
 //! # use lastfm::Client;
 //! #
-//! let maybe_client = Client::try_from_env("YOUR_USERNAME");
+//! let maybe_client = Client::<String, &str>::try_from_env("YOUR_USERNAME");
 //! match maybe_client {
 //!   Ok(client) => {
 //!     // do something with the client
@@ -52,22 +52,22 @@
 //! }
 //! ```
 //!
-//! Finally, for more advanced configurations you can use a `ClientBuilder`:
+//! Finally, for more advanced configurations you can use a `Client::builder()`:
 //!
 //! ```rust
-//! # use lastfm::ClientBuilder;
+//! # use lastfm::Client;
 //! #
-//! let client = ClientBuilder::new("YOUR_API_KEY", "YOUR_USERNAME").build();
+//! let client = Client::builder().api_key("YOUR_API_KEY").username("YOUR_USERNAME").build();
 //! ```
 //!
 //! ### Fetch the track you are currently playing
 //!
 //! ```rust,no_run
-//! # use lastfm::ClientBuilder;
+//! # use lastfm::Client;
 //! #
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!   let client = ClientBuilder::new("YOUR_API_KEY", "YOUR_USERNAME").build();
+//!   let client = Client::builder().api_key("YOUR_API_KEY").username("YOUR_USERNAME").build();
 //!   let now_playing = client.now_playing().await?;
 //!   if let Some(track) = now_playing {
 //!     println!("Now playing: {} - {}", track.artist.name, track.name);
@@ -85,11 +85,11 @@
 //! ```rust,no_run
 //! use futures_util::pin_mut;
 //! use futures_util::stream::StreamExt;
-//! # use lastfm::ClientBuilder;
+//! # use lastfm::Client;
 //! #
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!   let client = ClientBuilder::new("YOUR_API_KEY", "YOUR_USERNAME").build();
+//!   let client = Client::builder().api_key("YOUR_API_KEY").username("YOUR_USERNAME").build();
 //!   let tracks = client.all_tracks().await?;
 //!   println!("Total tracks: {}", tracks.total_tracks);
 //!
