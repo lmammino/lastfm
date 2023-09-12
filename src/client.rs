@@ -63,7 +63,7 @@ pub struct Client<A: AsRef<str>, U: AsRef<str>> {
 impl<A: AsRef<str>, U: AsRef<str>> Debug for Client<A, U> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Client")
-            .field("api_key", &mask_api_key(&self.api_key.as_ref()).as_str())
+            .field("api_key", &mask_api_key(self.api_key.as_ref()).as_str())
             .field("username", &self.username.as_ref())
             .field("reqwest_client", &self.reqwest_client)
             .field("base_url", &self.base_url)
@@ -227,8 +227,8 @@ impl<A: AsRef<str>, U: AsRef<str>> Client<A, U> {
             client: &self.reqwest_client,
             retry_strategy: &*self.retry_strategy,
             base_url: &self.base_url,
-            api_key: &self.api_key.as_ref(),
-            username: &self.username.as_ref(),
+            api_key: self.api_key.as_ref(),
+            username: self.username.as_ref(),
             limit: 1,
             from: None,
             to: None,
@@ -258,8 +258,8 @@ impl<A: AsRef<str>, U: AsRef<str>> Client<A, U> {
             client: &self.reqwest_client,
             retry_strategy: &*self.retry_strategy,
             base_url: &self.base_url,
-            api_key: &self.api_key.as_ref(),
-            username: &self.username.as_ref(),
+            api_key: self.api_key.as_ref(),
+            username: self.username.as_ref(),
             limit: 200,
             from,
             to,
