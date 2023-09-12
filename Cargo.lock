@@ -490,7 +490,7 @@ dependencies = [
 
 [[package]]
 name = "lastfm"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "async-stream",
  "chrono",
