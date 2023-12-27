@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 /// Trait to define a retry strategy
-pub trait RetryStrategy {
+pub trait RetryStrategy : Send + Sync {
     /// This function is called every time a request to the remote Last.fm APIs fails
     /// to determine if a retry attempt should be made and how much time to wait
     /// before the next attempt is made.
