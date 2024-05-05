@@ -12,6 +12,7 @@ use crate::{
 };
 use async_stream::try_stream;
 use std::{
+    collections::VecDeque,
     env::{self, VarError},
     fmt::Debug,
     time::Duration,
@@ -76,7 +77,7 @@ impl<A: AsRef<str>, U: AsRef<str>> Debug for Client<A, U> {
 pub struct RecentTracksFetcher {
     api_key: String,
     username: String,
-    current_page: Vec<RecordedTrack>,
+    current_page: VecDeque<RecordedTrack>,
     from: Option<i64>,
     to: Option<i64>,
     /// The total number of tracks available in the stream.
@@ -88,13 +89,13 @@ pub struct RecentTracksFetcher {
 
 impl RecentTracksFetcher {
     fn update_current_page(&mut self, page: RecentTracksPage) {
-        let mut current_page: Vec<RecordedTrack> = Vec::with_capacity(200);
+        let mut current_page: VecDeque<RecordedTrack> = VecDeque::with_capacity(200);
         let mut to: Option<i64> = None;
 
         for track in page.tracks {
             if let Track::Recorded(t) = track {
                 to = Some(t.date.timestamp());
-                current_page.push(t);
+                current_page.push_back(t);
             }
         }
 
@@ -106,7 +107,7 @@ impl RecentTracksFetcher {
     pub fn into_stream(mut self) -> impl Stream<Item = Result<RecordedTrack, Error>> {
         let recent_tracks = try_stream! {
             loop {
-                match self.current_page.pop() {
+                match self.current_page.pop_front() {
                     Some(t) => {
                         yield t;
                     }
@@ -269,7 +270,7 @@ impl<A: AsRef<str>, U: AsRef<str>> Client<A, U> {
         let mut fetcher = RecentTracksFetcher {
             api_key: self.api_key.as_ref().to_string(),
             username: self.username.as_ref().to_string(),
-            current_page: vec![],
+            current_page: VecDeque::new(),
             from,
             to,
             total_tracks: page.total_tracks,
