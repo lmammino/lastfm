@@ -12,9 +12,7 @@ use crate::{
 };
 use async_stream::try_stream;
 use std::{
-    env::{self, VarError},
-    fmt::Debug,
-    time::Duration,
+    env::{self, VarError}, fmt::Debug, sync::Arc, time::Duration
 };
 use tokio_stream::Stream;
 use typed_builder::TypedBuilder;
@@ -48,7 +46,7 @@ fn mask_api_key(api_key: &str) -> String {
 }
 
 /// A client for the Last.fm API.
-#[derive(TypedBuilder)]
+#[derive(TypedBuilder, Clone)]
 pub struct Client<A: AsRef<str>, U: AsRef<str>> {
     api_key: A,
     username: U,
@@ -56,8 +54,8 @@ pub struct Client<A: AsRef<str>, U: AsRef<str>> {
     reqwest_client: reqwest::Client,
     #[builder(default = DEFAULT_BASE_URL.parse().unwrap())]
     base_url: Url,
-    #[builder(default = Box::from(JitteredBackoff::default()))]
-    retry_strategy: Box<dyn RetryStrategy>,
+    #[builder(default = Arc::new(JitteredBackoff::default()))]
+    retry_strategy: Arc<dyn RetryStrategy>,
 }
 
 impl<A: AsRef<str>, U: AsRef<str>> Debug for Client<A, U> {
@@ -83,7 +81,7 @@ pub struct RecentTracksFetcher {
     pub total_tracks: u64,
     reqwest_client: reqwest::Client,
     base_url: Url,
-    retry_strategy: Box<dyn RetryStrategy>,
+    retry_strategy: Arc<dyn RetryStrategy>,
 }
 
 impl RecentTracksFetcher {
@@ -262,7 +260,6 @@ impl<A: AsRef<str>, U: AsRef<str>> Client<A, U> {
 
         Ok(fetcher)
     }
-
 
     /// Simple helper method for getting a page of recent tracks.
     ///
