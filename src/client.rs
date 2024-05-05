@@ -12,9 +12,7 @@ use crate::{
 };
 use async_stream::try_stream;
 use std::{
-    env::{self, VarError},
-    fmt::Debug,
-    time::Duration,
+    env::{self, VarError}, fmt::Debug, sync::Arc, time::Duration
 };
 use tokio_stream::Stream;
 use typed_builder::TypedBuilder;
@@ -48,7 +46,7 @@ fn mask_api_key(api_key: &str) -> String {
 }
 
 /// A client for the Last.fm API.
-#[derive(TypedBuilder)]
+#[derive(TypedBuilder, Clone)]
 pub struct Client<A: AsRef<str>, U: AsRef<str>> {
     api_key: A,
     username: U,
@@ -56,8 +54,8 @@ pub struct Client<A: AsRef<str>, U: AsRef<str>> {
     reqwest_client: reqwest::Client,
     #[builder(default = DEFAULT_BASE_URL.parse().unwrap())]
     base_url: Url,
-    #[builder(default = Box::from(JitteredBackoff::default()))]
-    retry_strategy: Box<dyn RetryStrategy>,
+    #[builder(default = Arc::new(JitteredBackoff::default()))]
+    retry_strategy: Arc<dyn RetryStrategy>,
 }
 
 impl<A: AsRef<str>, U: AsRef<str>> Debug for Client<A, U> {
@@ -83,7 +81,7 @@ pub struct RecentTracksFetcher {
     pub total_tracks: u64,
     reqwest_client: reqwest::Client,
     base_url: Url,
-    retry_strategy: Box<dyn RetryStrategy>,
+    retry_strategy: Arc<dyn RetryStrategy>,
 }
 
 impl RecentTracksFetcher {
@@ -223,17 +221,7 @@ impl<A: AsRef<str>, U: AsRef<str>> Client<A, U> {
 
     /// Fetches the currently playing track for the user (if any)
     pub async fn now_playing(&self) -> Result<Option<NowPlayingTrack>, Error> {
-        let page = get_page(GetPageOptions {
-            client: &self.reqwest_client,
-            retry_strategy: &*self.retry_strategy,
-            base_url: &self.base_url,
-            api_key: self.api_key.as_ref(),
-            username: self.username.as_ref(),
-            limit: 1,
-            from: None,
-            to: None,
-        })
-        .await?;
+        let page = self.get_page_helper(1, None, None).await?;
 
         match page.tracks.first() {
             Some(Track::NowPlaying(t)) => Ok(Some(t.clone())),
@@ -254,17 +242,7 @@ impl<A: AsRef<str>, U: AsRef<str>> Client<A, U> {
         from: Option<i64>,
         to: Option<i64>,
     ) -> Result<RecentTracksFetcher, Error> {
-        let page = get_page(GetPageOptions {
-            client: &self.reqwest_client,
-            retry_strategy: &*self.retry_strategy,
-            base_url: &self.base_url,
-            api_key: self.api_key.as_ref(),
-            username: self.username.as_ref(),
-            limit: 200,
-            from,
-            to,
-        })
-        .await?;
+        let page = self.get_page_helper(200, from, to).await?;
 
         let mut fetcher = RecentTracksFetcher {
             api_key: self.api_key.as_ref().to_string(),
@@ -281,5 +259,29 @@ impl<A: AsRef<str>, U: AsRef<str>> Client<A, U> {
         fetcher.update_current_page(page);
 
         Ok(fetcher)
+    }
+
+    /// Simple helper method for getting a page of recent tracks.
+    ///
+    /// Parameterizes options that need to change from method to method and re-uses the logic for passing other fields like the retry strategy and api key.
+    /// 
+    /// The `limit` parameter is the upper-bound on results in the page. The `from` and `to` parameters are Unix timestamps (in seconds).
+    async fn get_page_helper(
+        &self,
+        limit: u32,
+        from: Option<i64>,
+        to: Option<i64>,
+    ) -> Result<RecentTracksPage, Error> {
+        get_page(GetPageOptions {
+            client: &self.reqwest_client,
+            retry_strategy: &*self.retry_strategy,
+            base_url: &self.base_url,
+            api_key: self.api_key.as_ref(),
+            username: self.username.as_ref(),
+            limit: limit,
+            from,
+            to,
+        })
+        .await
     }
 }
