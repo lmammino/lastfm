@@ -1,6 +1,6 @@
 [package]
 name = "lastfm"
-version = "0.8.1"
+version = "0.9.0"
 edition = "2021"
 authors = ["Luciano Mammino"]
 description = "An async client to fetch your Last.fm listening history or the track you are currently playing"
